@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowUpDown } from "lucide-react";
-import { calculateScore, CalculationResult } from "@/lib/scoring";
+import { calculateScore, CalculationResult, SellerMetrics } from "@/lib/scoring";
 
 const fields = [
   { key: "sellerName", label: "Название продавца", aliases: ["назван", "продав", "name", "seller"] },
@@ -25,7 +25,11 @@ interface BulkResult extends CalculationResult {
   sellerName: string;
 }
 
-export default function BulkUpload() {
+interface BulkUploadProps {
+  onSellersLoaded?: (sellers: SellerMetrics[]) => void;
+}
+
+export default function BulkUpload({ onSellersLoaded }: BulkUploadProps) {
   const [csvData, setCsvData] = useState<string[][]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -93,7 +97,7 @@ export default function BulkUpload() {
   const handleProcess = () => {
     if (csvData.length === 0) return;
 
-    const newResults = csvData.map((row, index) => {
+    const allMetrics: SellerMetrics[] = csvData.map((row, index) => {
       const getVal = (key: string): string => {
         const headerName = mapping[key];
         if (!headerName) return "";
@@ -102,7 +106,7 @@ export default function BulkUpload() {
         return row[colIndex] || "";
       };
 
-      const metrics = {
+      return {
         sellerName: getVal("sellerName") || `Продавец ${index + 1}`,
         rating: Number(getVal("rating")) || 0,
         returnRate: Number(getVal("returnRate")) || 0,
@@ -112,12 +116,15 @@ export default function BulkUpload() {
         complaintsCount: Number(getVal("complaintsCount")) || 0,
         responseHours: Number(getVal("responseHours")) || 0,
       };
+    });
 
+    const newResults = allMetrics.map((metrics, index) => {
       const res = calculateScore(metrics);
       return { ...res, id: index + 1, sellerName: metrics.sellerName };
     });
 
     setResults(newResults);
+    onSellersLoaded?.(allMetrics);
   };
 
   const handleSort = () => {

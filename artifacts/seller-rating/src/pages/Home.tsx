@@ -20,8 +20,9 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { calculateScore, CalculationResult } from "@/lib/scoring";
+import { calculateScore, CalculationResult, SellerMetrics } from "@/lib/scoring";
 import BulkUpload from "@/pages/BulkUpload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const formSchema = z.object({
   sellerName: z.string().min(1, "Обязательное поле"),
@@ -85,6 +86,7 @@ function AnimatedCounter({ value }: { value: number }) {
 
 export default function Home() {
   const [result, setResult] = useState<CalculationResult | null>(null);
+  const [loadedSellers, setLoadedSellers] = useState<SellerMetrics[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -104,6 +106,22 @@ export default function Home() {
 
   function onSubmit(data: FormValues) {
     setResult(calculateScore(data));
+  }
+
+  function handleSellerSelect(index: string) {
+    const seller = loadedSellers[Number(index)];
+    if (!seller) return;
+    form.reset({
+      sellerName: seller.sellerName,
+      rating: seller.rating,
+      returnRate: seller.returnRate,
+      shippingDays: seller.shippingDays,
+      deliveryOnTime: seller.deliveryOnTime,
+      cancellationRate: seller.cancellationRate,
+      complaintsCount: seller.complaintsCount,
+      responseHours: seller.responseHours,
+    });
+    setResult(calculateScore(seller));
   }
 
   const zoneBadges = {
@@ -154,6 +172,25 @@ export default function Home() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-0">
+                      {loadedSellers.length > 0 && (
+                        <div className="mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                          <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1.5">
+                            Выбрать из загруженных
+                          </label>
+                          <Select onValueChange={handleSellerSelect} data-testid="select-loaded-seller">
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder={`${loadedSellers.length} продавцов загружено...`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {loadedSellers.map((s, i) => (
+                                <SelectItem key={i} value={String(i)}>
+                                  {s.sellerName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                           <FormField
@@ -414,7 +451,7 @@ export default function Home() {
           </TabsContent>
 
           <TabsContent value="bulk" className="focus-visible:outline-none">
-            <BulkUpload />
+            <BulkUpload onSellersLoaded={setLoadedSellers} />
           </TabsContent>
         </Tabs>
       </div>
