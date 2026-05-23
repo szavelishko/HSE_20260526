@@ -50,6 +50,13 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+interface MetricInfo {
+  key: string;
+  label: string;
+  score: number;
+  weight: number;
+}
+
 interface CalculationResult {
   score: number;
   zone: "green" | "yellow" | "red";
@@ -59,10 +66,10 @@ interface CalculationResult {
     returnScore: number;
     shippingScore: number;
     deliveryScore: number;
-    cancellationScore: number;
     complaintsScore: number;
     responseScore: number;
   };
+  topProblems: MetricInfo[];
 }
 
 function AnimatedCounter({ value }: { value: number }) {
@@ -111,28 +118,25 @@ export default function Home() {
   });
 
   function onSubmit(data: FormValues) {
-    // 1. Rating (25%)
+    // 1. Рейтинг (25%)
     const ratingScore = (data.rating / 5) * 100;
-    // 2. Return Rate (15%)
+    // 2. Процент возвратов (20%) — чем выше, тем хуже
     const returnScore = Math.max(0, 100 - data.returnRate * 5);
-    // 3. Shipping Days (10%)
+    // 3. Срок отгрузки (10%) — чем дольше, тем хуже
     const shippingScore = Math.max(0, 100 - data.shippingDays * 10);
-    // 4. Delivery On Time (20%)
+    // 4. Доставка в срок (20%)
     const deliveryScore = data.deliveryOnTime;
-    // 5. Cancellation Rate (10%)
-    const cancellationScore = Math.max(0, 100 - data.cancellationRate * 5);
-    // 6. Complaints Count (10%)
+    // 5. Жалобы за 30 дней (15%) — чем больше, тем хуже
     const complaintsScore = Math.max(0, 100 - data.complaintsCount * 5);
-    // 7. Response Hours (10%)
+    // 6. Время ответа (10%) — чем дольше, тем хуже
     const responseScore = Math.max(0, 100 - data.responseHours * 4);
 
     const finalScoreRaw =
       ratingScore * 0.25 +
-      returnScore * 0.15 +
-      shippingScore * 0.10 +
+      returnScore * 0.20 +
       deliveryScore * 0.20 +
-      cancellationScore * 0.10 +
-      complaintsScore * 0.10 +
+      complaintsScore * 0.15 +
+      shippingScore * 0.10 +
       responseScore * 0.10;
 
     const finalScore = Number(finalScoreRaw.toFixed(1));
@@ -148,6 +152,19 @@ export default function Home() {
       label = "Требует внимания";
     }
 
+    const allMetrics: MetricInfo[] = [
+      { key: "rating", label: "Рейтинг", score: ratingScore, weight: 25 },
+      { key: "return", label: "Процент возвратов", score: returnScore, weight: 20 },
+      { key: "delivery", label: "Доставка в срок", score: deliveryScore, weight: 20 },
+      { key: "complaints", label: "Жалобы за 30 дней", score: complaintsScore, weight: 15 },
+      { key: "shipping", label: "Срок отгрузки", score: shippingScore, weight: 10 },
+      { key: "response", label: "Время ответа", score: responseScore, weight: 10 },
+    ];
+
+    const topProblems = [...allMetrics]
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 3);
+
     setResult({
       score: finalScore,
       zone,
@@ -157,10 +174,10 @@ export default function Home() {
         returnScore,
         shippingScore,
         deliveryScore,
-        cancellationScore,
         complaintsScore,
         responseScore,
       },
+      topProblems,
     });
   }
 
@@ -358,35 +375,59 @@ export default function Home() {
                         colorClass={zoneProgressColors[result.zone]} 
                       />
                       <MetricBar 
-                        label="Возвраты (15%)" 
+                        label="Возвраты (20%)" 
                         score={result.breakdown.returnScore} 
                         colorClass={zoneProgressColors[result.zone]} 
                       />
                       <MetricBar 
-                        label="Отгрузка (10%)" 
-                        score={result.breakdown.shippingScore} 
-                        colorClass={zoneProgressColors[result.zone]} 
-                      />
-                      <MetricBar 
-                        label="Доставка (20%)" 
+                        label="Доставка в срок (20%)" 
                         score={result.breakdown.deliveryScore} 
                         colorClass={zoneProgressColors[result.zone]} 
                       />
                       <MetricBar 
-                        label="Отмены (10%)" 
-                        score={result.breakdown.cancellationScore} 
-                        colorClass={zoneProgressColors[result.zone]} 
-                      />
-                      <MetricBar 
-                        label="Жалобы (10%)" 
+                        label="Жалобы (15%)" 
                         score={result.breakdown.complaintsScore} 
                         colorClass={zoneProgressColors[result.zone]} 
                       />
                       <MetricBar 
-                        label="Ответы (10%)" 
+                        label="Срок отгрузки (10%)" 
+                        score={result.breakdown.shippingScore} 
+                        colorClass={zoneProgressColors[result.zone]} 
+                      />
+                      <MetricBar 
+                        label="Время ответа (10%)" 
                         score={result.breakdown.responseScore} 
                         colorClass={zoneProgressColors[result.zone]} 
                       />
+                    </div>
+
+                    <Separator className="my-5 bg-slate-200 dark:bg-slate-700" />
+
+                    <div data-testid="top-problems">
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+                        Основные проблемы
+                      </h4>
+                      <div className="space-y-2">
+                        {result.topProblems.map((problem, index) => (
+                          <div
+                            key={problem.key}
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/50"
+                            data-testid={`problem-item-${index}`}
+                          >
+                            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                              {index + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-red-700 dark:text-red-300 truncate">
+                                {problem.label}
+                              </p>
+                              <p className="text-xs text-red-500 dark:text-red-400">
+                                Вес {problem.weight}% · Балл: {problem.score.toFixed(1)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
